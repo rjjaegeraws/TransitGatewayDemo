@@ -1,0 +1,381 @@
+# After deploying, need to add routes in each VPC's route table to the transit gateway
+# Use SSM Session manager to attempt to SSH into the other instance.
+# Deploy in the us-west-2 region. 
+# us-east-1 ami-009d6802948d06e52
+# us-west-2 ami-01bbe152bf19d0289
+AWSTemplateFormatVersion: 2010-09-09
+Mappings:
+  RegionMap:
+    us-east-1:
+      Linux2: ami-009d6802948d06e52
+    us-west-2:
+      Linux2: ami-01bbe152bf19d0289
+Resources:
+  DemoVPC1:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: '10.1.0.0/16'
+      EnableDnsSupport: 'true'
+      EnableDnsHostnames: 'true'
+      Tags:
+      - Key: Name
+        Value: VPC-1
+  DemoVPC1PrivateSubnet:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      CidrBlock: '10.1.1.0/24'
+      VpcId:
+        Ref: DemoVPC1
+      Tags:
+      - Key: Name
+        Value: VPC-1 Private Subnet
+  DemoVPC1RouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId:
+        Ref: DemoVPC1
+      Tags:
+      - Key: Name
+        Value: VPC-1 RouteTablePrivate
+  DemoVPC1RotueTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId:
+        Ref: DemoVPC1PrivateSubnet
+      RouteTableId:
+        Ref: DemoVPC1RouteTable
+  DemoVPC1SecurityGroup:
+     Type: 'AWS::EC2::SecurityGroup'
+     Properties:
+       GroupDescription: Allow traffic for DemoVPC1
+       VpcId:
+         Ref: DemoVPC1
+       Tags:
+       - Key: Name
+         Value: DemoVPC1SecurityGroup
+       SecurityGroupIngress:
+       - IpProtocol: tcp
+         FromPort: 443
+         ToPort: 443
+         CidrIp: 0.0.0.0/0
+       - IpProtocol: tcp
+         FromPort: 80
+         ToPort: 80
+         CidrIp: 0.0.0.0/0
+       - IpProtocol: tcp
+         FromPort: 22
+         ToPort: 22
+         CidrIp: 0.0.0.0/0
+
+  
+  DemoVPC1EndpointEC2:
+    Type: 'AWS::EC2::VPCEndpoint'
+    Properties:
+      VpcId:
+        Ref: DemoVPC1
+      SubnetIds:
+      - Ref: DemoVPC1PrivateSubnet
+      PrivateDnsEnabled: 'true'
+      VpcEndpointType: Interface
+      SecurityGroupIds:
+      -  Ref: DemoVPC1SecurityGroup
+      ServiceName: !Join
+        - ''
+        - - com.amazonaws.
+          - !Ref 'AWS::Region'
+          - .ec2
+  DemoVPC1EndpointEC2Messages:
+    Type: 'AWS::EC2::VPCEndpoint'
+    Properties:
+      VpcId:
+        Ref: DemoVPC1
+      SubnetIds:
+      - Ref: DemoVPC1PrivateSubnet
+      PrivateDnsEnabled: 'true'
+      VpcEndpointType: Interface
+      SecurityGroupIds:
+      -  Ref: DemoVPC1SecurityGroup
+      ServiceName: !Join
+        - ''
+        - - com.amazonaws.
+          - !Ref 'AWS::Region'
+          - .ec2messages
+  DemoVPC1EndpointSSM:
+    Type: 'AWS::EC2::VPCEndpoint'
+    Properties:
+      VpcId:
+        Ref: DemoVPC1
+      SubnetIds:
+      - Ref: DemoVPC1PrivateSubnet
+      PrivateDnsEnabled: 'true'
+      VpcEndpointType: Interface
+      SecurityGroupIds:
+       -  Ref: DemoVPC1SecurityGroup
+      ServiceName: !Join
+        - ''
+        - - com.amazonaws.
+          - !Ref 'AWS::Region'
+          - .ssm
+  DemoVPC1EndpointSSMMessages:
+    Type: 'AWS::EC2::VPCEndpoint'
+    Properties:
+      VpcId:
+        Ref: DemoVPC1
+      SubnetIds:
+      - Ref: DemoVPC1PrivateSubnet
+      PrivateDnsEnabled: 'true'
+      VpcEndpointType: Interface
+      SecurityGroupIds:
+      -  Ref: DemoVPC1SecurityGroup
+      ServiceName: !Join
+        - ''
+        - - com.amazonaws.
+          - !Ref 'AWS::Region'
+          - .ssmmessages
+  DemoVPC1EndpointS3:
+    Type: 'AWS::EC2::VPCEndpoint'
+    Properties:
+      VpcId:
+        Ref: DemoVPC1          
+      VpcEndpointType: Gateway      
+      ServiceName: !Join
+        - ''
+        - - com.amazonaws.
+          - !Ref 'AWS::Region'
+          - .s3
+
+  DemoTransitGateway:
+    Type: 'AWS::EC2::TransitGateway'
+    Properties:
+      AmazonSideAsn: 64512
+      Description: 'Demo TGW Rotue Integration'
+      AutoAcceptSharedAttachments: 'disable'
+      DefaultRouteTableAssociation: 'enable'
+      DnsSupport: 'enable'
+      Tags:
+      - Key: Name
+        Value: DemoTransitGateway
+  DemoVPC1PrivateSubnetTransitGatewayAssociation:
+    Type: 'AWS::EC2::TransitGatewayAttachment'
+    Properties:
+      SubnetIds:
+      - Ref: DemoVPC1PrivateSubnet
+      TransitGatewayId:
+        Ref: DemoTransitGateway
+      VpcId:
+        Ref: DemoVPC1
+      Tags:
+      - Key: Name
+        Value: VPC-1 Private Subnet        
+   
+  DemoVPC2PrivateSubnetTransitGatewayAssociation:
+    Type: 'AWS::EC2::TransitGatewayAttachment'
+    Properties:
+      SubnetIds:
+      - Ref: DemoVPC2PrivateSubnet      
+      TransitGatewayId:
+        Ref: DemoTransitGateway
+      VpcId:
+        Ref: DemoVPC2
+      Tags:
+      - Key: Name
+        Value: VPC-2 Private Subnet
+
+
+  
+
+
+  DemoVPC2:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: '10.2.0.0/16'
+      EnableDnsSupport: 'true'
+      EnableDnsHostnames: 'true'
+      Tags:
+      - Key: Name
+        Value: VPC-2
+  DemoVPC2PrivateSubnet:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      CidrBlock: '10.2.1.0/28'
+      VpcId:
+        Ref: DemoVPC2
+      Tags:
+      - Key: Name
+        Value: VPC-2 Private Subnet  
+  DemoVPC2PublicSubnet:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      CidrBlock: '10.2.2.0/28'
+      VpcId:
+        Ref: DemoVPC2
+      Tags:
+      - Key: Name
+        Value: VPC-2 Public Subnet
+  DemoVPC2RouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId:
+        Ref: DemoVPC2
+      Tags:
+      - Key: Name
+        Value: VPC-2 RouteTablePublic
+  DemoVPC2RouteTablePrivate:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId:
+        Ref: DemoVPC2
+      Tags:
+      - Key: Name
+        Value: VPC-2 RouteTablePrivate
+  DemoVPC2RotueTableAssociationPrivate:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId:
+        Ref: DemoVPC2PrivateSubnet
+      RouteTableId:
+        Ref: DemoVPC2RouteTablePrivate
+  DemoVPC2RotueTableAssociationPublic:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId:
+        Ref: DemoVPC2PublicSubnet
+      RouteTableId:
+        Ref: DemoVPC2RouteTable
+  DemoVPC2SecurityGroup:
+     Type: 'AWS::EC2::SecurityGroup'
+     Properties:
+       GroupDescription: Allow traffic for DemoVPC2
+       VpcId:
+         Ref: DemoVPC2
+       Tags:
+       - Key: Name
+         Value: VPC-2 SecurityGroup
+       SecurityGroupIngress:
+       - IpProtocol: tcp
+         FromPort: 443
+         ToPort: 443
+         CidrIp: 0.0.0.0/0
+       - IpProtocol: tcp
+         FromPort: 80
+         ToPort: 80
+         CidrIp: 0.0.0.0/0
+       - IpProtocol: tcp
+         FromPort: 22
+         ToPort: 22
+         CidrIp: 0.0.0.0/0
+
+   
+  DemoVPC2InternetGateway:
+    Type: 'AWS::EC2::InternetGateway'
+    Properties:
+      Tags:
+      - Key: Name
+        Value: VPC-2 InternetGateway
+
+  DemoVPC2InternetGatewayAttach:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties:
+      VpcId:
+        Ref: DemoVPC2
+      InternetGatewayId:
+        Ref: DemoVPC2InternetGateway
+
+  EIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  DemoVPC2NatGateway:
+    Type: 'AWS::EC2::NatGateway'
+    DependsOn: DemoVPC2InternetGatewayAttach
+    Properties:
+      AllocationId:
+        Fn::GetAtt:
+        - EIP
+        - AllocationId
+      SubnetId:
+        Ref: DemoVPC2PublicSubnet
+      Tags:
+      - Key: Name
+        Value: VPC-2 NatGateway
+
+  NATRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId:
+        Ref: DemoVPC2RouteTablePrivate
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId:
+        Ref: DemoVPC2NatGateway
+
+  IGWRoute:
+    DependsOn: DemoVPC2InternetGateway
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId:
+        Ref: DemoVPC2RouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId:
+        Ref: DemoVPC2InternetGateway
+
+  # DemoVPC1RouteForVPC2:
+  #   Type: AWS::EC2::Route
+  #   Properties:
+  #     RouteTableId:
+  #       Ref: DemoVPC1RouteTable
+  #     DestinationCidrBlock: 10.1.0.0/16
+  #     TransitGatewayId:
+  #       Ref: DemoVPC1PrivateSubnetTransitGatewayAssociation
+
+  ECRootRole: 
+    Type: 'AWS::IAM::Role'
+    Properties: 
+      AssumeRolePolicyDocument: 
+        Version: '2012-10-17'
+        Statement: 
+          - 
+            Effect: 'Allow'
+            Principal: 
+              Service: 
+                - 'ec2.amazonaws.com'
+            Action: 
+              - 'sts:AssumeRole'
+      Path: '/'
+      ManagedPolicyArns:
+      -  'arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM'
+ 
+  EC2InstanceProfile:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      Path: '/'
+      Roles:
+      - Ref: ECRootRole
+
+        
+  DemoEC2Machine1:
+    Type: 'AWS::EC2::Instance'
+    Metadata:
+      Comment: Install a simple server     
+    Properties:
+      ImageId: !FindInMap
+        - RegionMap
+        - !Ref 'AWS::Region'
+        - Linux2
+      IamInstanceProfile: 
+        Ref: EC2InstanceProfile
+      InstanceType: 't2.small'
+      SecurityGroupIds:
+        - Ref: DemoVPC1SecurityGroup      
+      SubnetId:
+          Ref: DemoVPC1PrivateSubnet     
+      Tags:
+        - Key: Name
+          Value: DemoEC2 in VPC-1
+       
+  
+
+      
+      
+  
+  
