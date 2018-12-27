@@ -1,6 +1,6 @@
 # After deploying, need to add routes in each VPC's route table to the transit gateway
 # Use SSM Session manager to attempt to SSH into the other instance.
-# Deploy in the us-west-2 region. 
+# Deploy in the us-west-2, us-east-1, or ca-central-1 region. 
 # us-east-1 ami-009d6802948d06e52
 # us-west-2 ami-01bbe152bf19d0289
 AWSTemplateFormatVersion: 2010-09-09
@@ -10,6 +10,8 @@ Mappings:
       Linux2: ami-009d6802948d06e52
     us-west-2:
       Linux2: ami-01bbe152bf19d0289
+    ca-central-1:
+      Linux2: ami-076b4adb3f90cd384
 Resources:
   DemoVPC1:
     Type: 'AWS::EC2::VPC'
@@ -318,15 +320,6 @@ Resources:
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId:
         Ref: DemoVPC2InternetGateway
-
-  # DemoVPC1RouteForVPC2:
-  #   Type: AWS::EC2::Route
-  #   Properties:
-  #     RouteTableId:
-  #       Ref: DemoVPC1RouteTable
-  #     DestinationCidrBlock: 10.1.0.0/16
-  #     TransitGatewayId:
-  #       Ref: DemoVPC1PrivateSubnetTransitGatewayAssociation
 
   ECRootRole: 
     Type: 'AWS::IAM::Role'
